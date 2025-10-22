@@ -1,0 +1,47 @@
+#CI项目
+name: VIKINGYFY
+
+#CI计划
+on:
+  #自动编译：当Auto-Clean运行完成后
+  workflow_run:
+    workflows: ["Auto-Clean"]
+    types:
+      - completed
+  #手动编译
+  workflow_dispatch:
+    inputs:
+      CONFIG:
+        required: true
+        default: "VIKINGYFY-JDC1800"
+        type: choice
+        options:
+          - VIKINGYFY-JDC1800
+          - VIKINGYFY-AX5
+
+#CI权限
+permissions: write-all
+
+#CI任务
+jobs:
+  config:
+    name: ${{inputs.CONFIG}}
+    strategy:
+      fail-fast: false
+      matrix:
+        SOURCE: [VIKINGYFY/immortalwrt]
+        BRANCH: [main]
+
+    #调用公用编译核心WRT-CORE.yml
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      #编译配置
+      WRT_CONFIG: ${{inputs.CONFIG}}
+      #源码链接
+      WRT_REPO: https://github.com/${{matrix.SOURCE}}.git
+      #源码分支
+      WRT_BRANCH: ${{matrix.BRANCH}}
+      #源码名称
+      WRT_SOURCE: ${{matrix.SOURCE}}
+      #启用自定义feeds
+      WRT_FEEDS: true
