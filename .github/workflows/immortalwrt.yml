@@ -1,0 +1,40 @@
+#CI项目
+name: immortalwrt
+
+#CI计划
+on:
+  #手动编译
+  workflow_dispatch:
+    inputs:
+      CONFIG:
+        required: true
+        default: "immortalwrt-x86"
+        type: choice
+        options:
+          - immortalwrt-x86
+
+#CI权限
+permissions: write-all
+
+#CI任务
+jobs:
+  config:
+    name: ${{inputs.CONFIG}}
+    strategy:
+      fail-fast: false
+      matrix:
+        SOURCE: [immortalwrt/immortalwrt]
+        BRANCH: [master]
+
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      #编译平台
+      WRT_TARGET: ${{inputs.CONFIG}}
+      #源码链接
+      WRT_REPO: https://github.com/${{matrix.SOURCE}}.git
+      #源码分支
+      WRT_BRANCH: ${{matrix.BRANCH}}
+      #源码名称
+      WRT_SOURCE: ${{matrix.SOURCE}}
+      #启用自定义feeds
+      WRT_FEEDS: true
