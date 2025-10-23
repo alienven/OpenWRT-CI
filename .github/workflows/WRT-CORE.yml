@@ -161,8 +161,8 @@ jobs:
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          find ./bin/targets/ -iregex ".*\(json\|manifest\|apk\)$" -exec rm -rf {} +
-          find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
+          find ./bin/targets/ -type f -name "*.bin" -exec mv -f {} ./upload/ \;
+          find ./bin/targets/ -type f -name "*.sha256sums" -exec mv -f {} ./upload/ \;
 
       - name: Release Firmware
         uses: softprops/action-gh-release@master
