@@ -5,7 +5,7 @@ name: VIKINGYFY
 on:
   #自动编译：当Auto-Clean运行完成后
   workflow_run:
-    workflows: ["Auto-Clean"]
+    workflows: ['Auto-Clean']
     types:
       - completed
   #手动编译
@@ -13,7 +13,7 @@ on:
     inputs:
       CONFIG:
         required: true
-        default: "VIKINGYFY-JDC1800"
+        default: 'VIKINGYFY-JDC1800'
         type: choice
         options:
           - VIKINGYFY-JDC1800
