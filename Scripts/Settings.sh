@@ -21,13 +21,6 @@ if [ -f "$NSS_PBUF" ]; then
 	echo "qca-nss-pbuf has been fixed!"
 fi
 
-#修改shell为zsh
-PASSWD_PATH="./package/base-files/files/etc/passwd"
-if [ -f "$PASSWD_PATH" ]; then
-	sed -i 's/\/bin\/ash/\/usr\/bin\/zsh/g' $PASSWD_PATH
-	echo "shell has been change zsh!"
-fi
-
 #高通平台调整
 DTS_PATH="./target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/"
 if [[ "${WRT_CONFIG##*-}" == "JDC1800" ]]; then
