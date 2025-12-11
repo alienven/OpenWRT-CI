@@ -25,6 +25,7 @@ env:
   WRT_CONFIG: ${{inputs.WRT_CONFIG}}
   WRT_REPO: ${{inputs.WRT_REPO}}
   WRT_BRANCH: ${{inputs.WRT_BRANCH}}
+  WRT_SOURCE: ${{inputs.WRT_SOURCE}}
   WRT_FEEDS: ${{inputs.WRT_FEEDS}}
 
 jobs:
