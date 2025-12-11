@@ -10,3 +10,4 @@
 # echo 'src-git modem https://github.com/FUjr/modem_feeds.git' >> feeds.conf.default
 echo 'src-git easytier https://github.com/EasyTier/luci-app-easytier.git' >>feeds.conf.default
 echo 'src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git' >>feeds.conf.default
+echo 'src-git luci_app_xray https://github.com/yichya/luci-app-xray.git' >>feeds.conf.default
