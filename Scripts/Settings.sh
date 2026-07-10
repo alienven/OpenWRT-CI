@@ -7,20 +7,6 @@ CFG_FILE="./package/base-files/files/bin/config_generate"
 #修改默认主机名
 sed -i "s/hostname='.*'/hostname='${WRT_CONFIG##*-}'/g" $CFG_FILE
 
-#修改qca-nss-drv启动顺序
-NSS_DRV="./feeds/nss_packages/qca-nss-drv/files/qca-nss-drv.init"
-if [ -f "$NSS_DRV" ]; then
-	sed -i 's/START=.*/START=85/g' $NSS_DRV
-	echo "qca-nss-drv has been fixed!"
-fi
-
-#修改qca-nss-pbuf启动顺序
-NSS_PBUF="./package/kernel/mac80211/files/qca-nss-pbuf.init"
-if [ -f "$NSS_PBUF" ]; then
-	sed -i 's/START=.*/START=86/g' $NSS_PBUF
-	echo "qca-nss-pbuf has been fixed!"
-fi
-
 #高通平台调整
 DTS_PATH="./target/linux/qualcommax/files/arch/arm64/boot/dts/qcom/"
 if [[ "${WRT_CONFIG##*-}" == "JDC1800" ]]; then
