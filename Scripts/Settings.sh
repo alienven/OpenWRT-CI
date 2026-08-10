@@ -3,8 +3,8 @@
 #添加编译日期标识
 sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_CONFIG-$WRT_DATE')/g" $(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js")
 
-CFG_FILE="./package/base-files/files/bin/config_generate"
 #修改默认主机名
+CFG_FILE="./package/base-files/files/bin/config_generate"
 sed -i "s/hostname='.*'/hostname='${WRT_CONFIG##*-}'/g" $CFG_FILE
 
 #高通平台调整

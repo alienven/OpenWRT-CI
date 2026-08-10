@@ -162,6 +162,7 @@ jobs:
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
           find ./bin/targets/ -type f -name "*.bin" -exec mv -f {} ./upload/ \;
+          find ./bin/targets/ -type f -name "*.img.gz" -exec mv -f {} ./upload/ \;
           find ./bin/targets/ -type f -name "*.iso" -exec mv -f {} ./upload/ \;
           find ./bin/targets/ -type f -name "*.qcow2" -exec mv -f {} ./upload/ \;
 
