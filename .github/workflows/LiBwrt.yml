@@ -29,8 +29,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        SOURCE: [LiBwrt/openwrt-6.x]
-        BRANCH: [k6.12-nss]
+        SOURCE: [LiBwrt/LibWrt]
+        BRANCH: [main-nss]
 
     #调用公用编译核心WRT-CORE.yml
     uses: ./.github/workflows/WRT-CORE.yml
