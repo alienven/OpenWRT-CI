@@ -161,11 +161,10 @@ jobs:
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          find ./bin/targets/ -type f
-          find ./bin/targets/ -type f -name "*.bin" -exec mv -f {} ./upload/ \;
-          find ./bin/targets/ -type f -name "*.img.gz" -exec mv -f {} ./upload/ \;
-          find ./bin/targets/ -type f -name "*.iso" -exec mv -f {} ./upload/ \;
-          find ./bin/targets/ -type f -name "*.qcow2" -exec mv -f {} ./upload/ \;
+          find ./bin/targets/ -type f -name "*.apk" -exec rm -f {} +
+          find ./bin/targets/ -type f -size -5M -delete
+          find ./bin/targets/ -type f -printf '%f\n' | sort
+          find ./bin/targets/ -type f -exec mv -f {} ./upload/ +
 
       - name: Release Firmware
         uses: softprops/action-gh-release@master
