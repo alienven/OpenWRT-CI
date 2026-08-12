@@ -164,7 +164,7 @@ jobs:
           find ./bin/targets/ -type f -name "*.apk" -exec rm -f {} +
           find ./bin/targets/ -type f -size -5M -delete
           find ./bin/targets/ -type f -printf '%f\n' | sort
-          find ./bin/targets/ -type f -exec mv -f {} ./upload/ +
+          find ./bin/targets/ -type f -exec sh -c 'mv -f "$@" ./upload/' _ {} +
 
       - name: Release Firmware
         uses: softprops/action-gh-release@master
