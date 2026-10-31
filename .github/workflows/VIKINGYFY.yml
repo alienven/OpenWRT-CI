@@ -13,11 +13,19 @@ on:
     inputs:
       CONFIG:
         required: true
-        default: 'VIKINGYFY-JDC1800'
+        default: 'VIKINGYFY-JDC6500'
         type: choice
         options:
+          - VIKINGYFY-JDC6500
           - VIKINGYFY-JDC1800
           - VIKINGYFY-AX5
+      BRANCH:
+        required: true
+        default: 'owrt'
+        type: choice
+        options:
+          - owrt
+          - main
 
 #CI权限
 permissions: write-all
@@ -30,7 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         SOURCE: [VIKINGYFY/immortalwrt]
-        BRANCH: [main]
+        BRANCH: ${{inputs.BRANCH}}
 
     #调用公用编译核心WRT-CORE.yml
     uses: ./.github/workflows/WRT-CORE.yml
