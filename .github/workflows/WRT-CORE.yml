@@ -123,6 +123,9 @@ jobs:
         run: |
           cd ./wrt/
 
+          chmod +x $GITHUB_WORKSPACE/Scripts/Packages.sh
+          $GITHUB_WORKSPACE/Scripts/Packages.sh
+
           cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt > .config
 
           chmod +x $GITHUB_WORKSPACE/Scripts/Settings.sh
