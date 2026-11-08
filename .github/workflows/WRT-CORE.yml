@@ -43,6 +43,7 @@ jobs:
           sudo -E apt -yqq update
           sudo -E apt -yqq full-upgrade
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+          sudo -E apt -yqq install dwarves clang llvm libbpf-dev cmake libclang-dev zstd perl file binutils xz-utils pkg-config ca-certificates
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
@@ -109,8 +110,8 @@ jobs:
         run: |
           cd ./wrt/
 
-          chmod +x $GITHUB_WORKSPACE/Scripts/Feeds.sh
-          $GITHUB_WORKSPACE/Scripts/Feeds.sh
+          chmod +x ./Scripts/Feeds.sh
+          ./Scripts/Feeds.sh
 
       - name: Update Feeds
         run: |
@@ -123,15 +124,52 @@ jobs:
         run: |
           cd ./wrt/
 
-          chmod +x $GITHUB_WORKSPACE/Scripts/Packages.sh
-          $GITHUB_WORKSPACE/Scripts/Packages.sh
+          chmod +x ./Scripts/Packages.sh
+          ./Scripts/Packages.sh
 
-          cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt > .config
+          cat ./Config/$WRT_CONFIG.txt > .config
 
-          chmod +x $GITHUB_WORKSPACE/Scripts/Settings.sh
-          $GITHUB_WORKSPACE/Scripts/Settings.sh
+          chmod +x ./Scripts/Settings.sh
+          ./Scripts/Settings.sh
 
           make defconfig -j$(nproc)
+
+      - name: Initialization Honk Toolchain
+        run: |
+          cd ./wrt/
+          echo "========== Resolve Honk Toolchain Pins =========="
+
+          HONK_DIR="./package/luci-app-honk/honk"
+
+          eval "$("$HONK_DIR/honk_toolchain.sh")"
+
+          echo "========== Install Rust =========="
+
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --profile minimal --no-modify-path
+          fi
+          . "$HOME/.cargo/env"
+
+          echo "========== Install Zig =========="
+
+          curl -fsSL --retry 3 -o /tmp/zig.tar.xz \
+            "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+
+          sudo tar -xJf /tmp/zig.tar.xz -C /usr/local
+
+          sudo ln -sf "/usr/local/zig-x86_64-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig
+
+          echo "========== Install bpf-linker =========="
+
+          curl -fsSL --retry 3 -o /tmp/bpf-linker.tar.zst \
+            "https://github.com/aya-rs/bpf-linker/releases/download/v${BPF_LINKER_VERSION}/bpf-linker-x86_64-unknown-linux-musl.tar.zst"
+
+          echo "${BPF_LINKER_SHA256}  /tmp/bpf-linker.tar.zst" | sha256sum -c -
+
+          sudo tar --zstd -xf /tmp/bpf-linker.tar.zst -C /usr/local/bin
+
+          echo "========== Honk Toolchain Ready =========="
 
       - name: Download Packages
         run: |

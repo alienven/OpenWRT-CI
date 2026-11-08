@@ -58,6 +58,7 @@ UPDATE_PACKAGE() {
 
 
 UPDATE_PACKAGE "honk" "QiuSimons/luci-app-honk" "master"
+UPDATE_PACKAGE "vmlinux-btf" "QiuSimons/vmlinux-btf" "master"
 # UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
 UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 # UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
