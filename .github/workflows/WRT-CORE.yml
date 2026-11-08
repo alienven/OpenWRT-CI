@@ -43,7 +43,7 @@ jobs:
           sudo -E apt -yqq update
           sudo -E apt -yqq full-upgrade
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-          sudo -E apt -yqq install dwarves clang llvm libbpf-dev cmake libclang-dev zstd perl file binutils xz-utils pkg-config ca-certificates
+          sudo -E apt -yqq install dwarves clang llvm libbpf-dev libclang-dev
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
@@ -108,10 +108,9 @@ jobs:
       - name: Load Custom Feeds
         if: env.WRT_FEEDS == 'true'
         run: |
-          cd ./wrt/
 
-          chmod +x ./Scripts/Feeds.sh
-          ./Scripts/Feeds.sh
+          chmod +x $GITHUB_WORKSPACE/Scripts/Feeds.sh
+          $GITHUB_WORKSPACE/Scripts/Feeds.sh
 
       - name: Update Feeds
         run: |
@@ -124,19 +123,20 @@ jobs:
         run: |
           cd ./wrt/
 
-          chmod +x ./Scripts/Packages.sh
-          ./Scripts/Packages.sh
+          chmod +x $GITHUB_WORKSPACE/Scripts/Packages.sh
+          $GITHUB_WORKSPACE/Scripts/Packages.sh
 
-          cat ./Config/$WRT_CONFIG.txt > .config
+          cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt > .config
 
-          chmod +x ./Scripts/Settings.sh
-          ./Scripts/Settings.sh
+          chmod +x $GITHUB_WORKSPACE/Scripts/Settings.sh
+          $GITHUB_WORKSPACE/Scripts/Settings.sh
 
           make defconfig -j$(nproc)
 
       - name: Initialization Honk Toolchain
         run: |
           cd ./wrt/
+
           echo "========== Resolve Honk Toolchain Pins =========="
 
           HONK_DIR="./package/luci-app-honk/honk"
@@ -181,7 +181,7 @@ jobs:
         run: |
           cd ./wrt/
 
-          make -j$(nproc) || make -j1 V=s
+          make -j$(nproc)
 
       - name: Machine Space
         run: |
@@ -195,7 +195,9 @@ jobs:
 
       - name: Package Firmware
         run: |
-          cd ./wrt/ && mkdir ./upload/
+          cd ./wrt/
+
+          mkdir ./upload/
 
           cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_BRANCH"-"$WRT_DATE".txt
 
