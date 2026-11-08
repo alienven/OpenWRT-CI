@@ -56,6 +56,8 @@ UPDATE_PACKAGE() {
 # UPDATE_PACKAGE "shadcn" "eamonxg/luci-theme-shadcn" "main"
 # UPDATE_PACKAGE "vantage" "anothaDev/luci-theme-vantage" "main"
 
+
+UPDATE_PACKAGE "honk" "QiuSimons/luci-app-honk" "master"
 # UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
 UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 # UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"

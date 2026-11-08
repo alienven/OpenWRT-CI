@@ -12,6 +12,13 @@ on:
         type: choice
         options:
           - immortalwrt-x86
+      BRANCH:
+        required: true
+        default: 'openwrt-25.12'
+        type: choice
+        options:
+          - master
+          - openwrt-25.12
 
 #CI权限
 permissions: write-all
@@ -24,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         SOURCE: [immortalwrt/immortalwrt]
-        BRANCH: [master]
+        BRANCH: ['${{ inputs.BRANCH}}']
 
     uses: ./.github/workflows/WRT-CORE.yml
     with:
