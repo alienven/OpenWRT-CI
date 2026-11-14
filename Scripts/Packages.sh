@@ -8,9 +8,20 @@ UPDATE_PACKAGE() {
 	local PKG_REPO=$2
 	local PKG_BRANCH=$3
 	local PKG_SPECIAL=$4
-	local PKG_LIST=("$PKG_NAME" $5)  # 第5个参数为自定义名称列表
+
 	local REPO_NAME=${PKG_REPO#*/}
 	local REPO_PATH="./package/$REPO_NAME"
+	local CLONE_PATH="./package/.clone-$PKG_NAME"
+	local EXTRA_LIST=($5)  # 第5个参数：空格分隔的名称列表
+
+	# pkg 模式：$1 仅用于临时目录名 .clone-$1，清理与提取都改用 $5；$5 为空时回退为 $1
+	# 普通模式：逻辑不变，$1 与 $5 都只用于清理 feeds 旧目录
+	local PKG_LIST=()
+	if [[ "$PKG_SPECIAL" == "pkg" && ${#EXTRA_LIST[@]} -gt 0 ]]; then
+		PKG_LIST=("${EXTRA_LIST[@]}")
+	else
+		PKG_LIST=("$PKG_NAME" "${EXTRA_LIST[@]}")
+	fi
 
 	echo " "
 
@@ -18,7 +29,8 @@ UPDATE_PACKAGE() {
 	for NAME in "${PKG_LIST[@]}"; do
 		# 查找匹配的目录
 		echo "Search directory: $NAME"
-		local FOUND_DIRS=$(find ./feeds/luci/ ./feeds/packages/ -maxdepth 3 -type d -iname "*$NAME*" 2>/dev/null)
+		local FOUND_DIRS
+		FOUND_DIRS=$(find ./feeds/luci/ ./feeds/packages/ -maxdepth 3 -type d -iname "*$NAME*" 2>/dev/null)
 
 		# 删除找到的目录
 		if [ -n "$FOUND_DIRS" ]; then
@@ -31,13 +43,42 @@ UPDATE_PACKAGE() {
 		fi
 	done
 
+	# 清理上次中断残留的临时目录，避免 git clone 报 already exists
+	rm -rf "$CLONE_PATH"
+
 	# 克隆 GitHub 仓库
-	git clone --depth=1 --single-branch --branch $PKG_BRANCH "https://github.com/$PKG_REPO.git" $REPO_PATH
+	git clone --depth=1 --single-branch --branch "$PKG_BRANCH" "https://github.com/$PKG_REPO.git" "$CLONE_PATH"
 
 	# 处理克隆的仓库
 	if [[ "$PKG_SPECIAL" == "pkg" ]]; then
-		find $REPO_PATH/*/ -maxdepth 3 -type d -iname "*$PKG_NAME*" -prune -exec cp -rf {} ./package \;
-		rm -rf $REPO_PATH
+		# 按 $5 中的每个名称分别提取，命中即复制到 ./package
+		for NAME in "${PKG_LIST[@]}"; do
+			local MATCHED
+			MATCHED=$(find "$CLONE_PATH" -mindepth 1 -maxdepth 4 -type d -iname "*$NAME*" -prune -print)
+
+			if [ -z "$MATCHED" ]; then
+				echo "Not found in repo: $NAME"
+				continue
+			fi
+
+			while read -r DIR; do
+				local TARGET="./package/$(basename "$DIR")"
+
+				# 目标目录已存在时先删除，避免旧文件残留（cp -rf 只会合并覆盖，不会清理多出来的文件）
+				if [ -e "$TARGET" ]; then
+					rm -rf "$TARGET"
+					echo "Remove existing: $TARGET"
+				fi
+
+				cp -a "$DIR" ./package/
+				echo "Extract directory: $DIR"
+			done <<< "$MATCHED"
+		done
+
+		rm -rf "$CLONE_PATH"
+	else
+		rm -rf "$REPO_PATH"
+		mv "$CLONE_PATH" "$REPO_PATH"
 	fi
 }
 
@@ -54,21 +95,21 @@ UPDATE_PACKAGE() {
 # UPDATE_PACKAGE "kucat" "sirpdboy/luci-theme-kucat" "master"
 # UPDATE_PACKAGE "kucat-config" "sirpdboy/luci-app-kucat-config" "master"
 # UPDATE_PACKAGE "shadcn" "eamonxg/luci-theme-shadcn" "main"
-# UPDATE_PACKAGE "vantage" "anothaDev/luci-theme-vantage" "main"
+UPDATE_PACKAGE "vantage" "anothaDev/luci-theme-vantage" "main" "pkg" "luci-app-vantage luci-theme-vantage"
 
-
-UPDATE_PACKAGE "honk" "QiuSimons/luci-app-honk" "master"
-UPDATE_PACKAGE "vmlinux-btf" "QiuSimons/vmlinux-btf" "master"
 # UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
-UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 # UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
 # UPDATE_PACKAGE "passwall" "Openwrt-Passwall/openwrt-passwall" "main" "pkg"
 # UPDATE_PACKAGE "passwall2" "Openwrt-Passwall/openwrt-passwall2" "main" "pkg"
+UPDATE_PACKAGE "honk" "QiuSimons/luci-app-honk" "master"
+UPDATE_PACKAGE "vmlinux-btf" "QiuSimons/vmlinux-btf" "master"
+UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 
 # UPDATE_PACKAGE "diskmanager" "4IceG/luci-app-mini-diskmanager" "main"
-UPDATE_PACKAGE "easytier" "EasyTier/luci-app-easytier" "main"
 # UPDATE_PACKAGE "qmodem" "FUjr/QModem" "main"
-UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub gecoosac miniupnpd sing-box luci-app-homeproxy luci-app-timewol luci-app-upnp luci-app-wolplus luci-app-wolultra"
+#UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub gecoosac miniupnpd sing-box luci-app-homeproxy luci-app-timewol luci-app-upnp luci-app-wolplus luci-app-wolultra"
+UPDATE_PACKAGE "easytier" "EasyTier/luci-app-easytier" "main"
+UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "pkg" "miniupnpd luci-app-upnp"
 
 # UPDATE_PACKAGE "diskman" "sbwml/luci-app-diskman" "main"
 # UPDATE_PACKAGE "mosdns" "sbwml/luci-app-mosdns" "v5" "" "v2dat"
