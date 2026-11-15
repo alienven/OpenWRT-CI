@@ -100,6 +100,21 @@ jobs:
               # host/stamp 是 tools 的 stamp 所在，删掉它 tools/compile 才会真跑。
               # toolchain 的 stamp 在 TOOLCHAIN_DIR，不受影响，缓存照旧可用。
               rm -rf ./wrt/staging_dir/host
+            fi
+
+            # toolchain 本身也要验：它缺失时 package/libs/toolchain 会在
+            # cp libgcc_s.so.* 上炸，而下面的 touch 会把缺失的 stamp 补上，
+            # 让 toolchain/compile 永远不会重跑，于是每次都在同一个 cp 上失败。
+            TC_DIR=$(ls -d ./wrt/staging_dir/toolchain-* 2>/dev/null | head -n 1)
+            if [ -z "$TC_DIR" ] || [ ! -f "$TC_DIR/stamp/.gcc_final_installed" ] ||
+               ! ls "$TC_DIR"/lib/libgcc_s.so.* >/dev/null 2>&1; then
+              echo "toolchain incomplete -- treating cache as incomplete"
+              rm -rf ./wrt/staging_dir/toolchain-*
+              TC_DIR=""
+            fi
+
+            if [ ! -d "./wrt/staging_dir/host" ] || [ -z "$TC_DIR" ]; then
+              echo "staging dir incomplete, skip stamp touch"
             else
               find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
                 find "$DIR" -type f -exec touch {} +
@@ -215,10 +230,21 @@ jobs:
             exit 0
           fi
 
-          # 直接指定 package 目标不会先编 tools/。而 package/utils/lua 的
-          # Host/Configure 用 $(SED)（= staging_dir/host/bin/sed），tools 缺失时
-          # 会在 honk 之前就炸在 lua 上。world 本来会先编 tools，这里补上。
-          make tools/compile -j$(nproc)
+          # 直接指定 package 目标不会像 world 那样先编 tools 和 toolchain。
+          # package//compile 只依赖 $(STAGING_DIR)/.prepared、apk host 工具和签名密钥，
+          # 所以 package/libs/toolchain 会先于 toolchain 本身执行 install，卡在
+          # cp staging_dir/toolchain-*/lib/libgcc_s.so.* 上（"No such file or directory"）。
+          # world 的 prepare 就是 $(tools/stamp-compile) + $(toolchain/stamp-compile)，
+          # 这里显式跑一次，lua 的 $(SED) 和 libgcc 的来源就都齐了。
+          make prepare -j$(nproc)
+
+          # prepare 之后工具链必须真的在，否则后面还会在同一个 cp 上炸
+          TC_DIR=$(ls -d ./staging_dir/toolchain-* 2>/dev/null | head -n 1)
+          if [ -z "$TC_DIR" ] || ! ls "$TC_DIR"/lib/libgcc_s.so.* >/dev/null 2>&1; then
+            echo "ERROR: toolchain staging is incomplete after make prepare"
+            ls -l ./staging_dir/toolchain-* 2>/dev/null || true
+            exit 1
+          fi
 
           # 再单独打穿 honk：它依赖外部 Rust 工具链，混进并行全量编译后报错会被淹没。
           # CONFIG_PACKAGE_vmlinux-btf= 与上游 CI 一致：把预编译 blob 版排除掉，
