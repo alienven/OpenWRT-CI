@@ -14,3 +14,38 @@ if [[ "${WRT_CONFIG##*-}" == "JDC1800" ]]; then
 	find $DTS_PATH -type f ! -iname '*nowifi*' -exec sed -i 's/ipq\(6018\|8074\).dtsi/ipq\1-nowifi.dtsi/g' {} +
 	echo "qualcommax set up nowifi successfully!"
 fi
+
+# Fix rust
+# 子 shell 内切换目录，避免影响后面仍按相对路径工作的步骤
+if [ "${WRT_BRANCH}" = "openwrt-25.12" ]; then
+	(
+		cd feeds/packages || exit 0
+		# 同远程origin/master覆盖本地lang/rust
+
+	)
+fi
+
+# 补齐 honk 源码
+# daeuniverse/openwrt-packages 不把上游 Rust 源码放进仓库（其 .gitignore 排除
+# /honk/src/），而 honk/Makefile 的 Build/Prepare 在该目录缺失时会直接报错退出。
+# Build/Compile 通过 GITHUB_REF=refs/tags/<tag> 取版本号，不依赖 git 历史。
+HONK_PKG="./package/openwrt-packages/honk"
+HONK_REV="v0.1.0-beta.6"
+
+if [ -d "$HONK_PKG" ]; then
+	if [ ! -d "$HONK_PKG/src" ]; then
+		echo "honk: fetching upstream sources at $HONK_REV"
+		git clone --depth=1 --single-branch --branch "$HONK_REV" \
+			https://github.com/daeuniverse/honk.git "$HONK_PKG/src"
+	else
+		echo "honk: sources already present, skip clone"
+	fi
+	# build.sh 用 tag 核对二进制内嵌版本，tag 与 Makefile 的 HONK_GIT_TAG 必须一致
+	MAKEFILE_TAG=$(sed -n 's/^HONK_GIT_TAG:=.*,\(v[^)]*\))/\1/p' "$HONK_PKG/Makefile" | head -n 1)
+	if [ -n "$MAKEFILE_TAG" ] && [ "$MAKEFILE_TAG" != "$HONK_REV" ]; then
+		echo "honk: WARNING package expects $MAKEFILE_TAG but cloned $HONK_REV"
+	fi
+	echo "honk: sources ready at $HONK_REV (package default ${MAKEFILE_TAG:-unknown})"
+else
+	echo "honk: package directory not found, skip"
+fi

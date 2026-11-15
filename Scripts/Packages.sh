@@ -101,8 +101,11 @@ UPDATE_PACKAGE "vantage" "anothaDev/luci-theme-vantage" "main" "pkg" "luci-app-v
 # UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "dev" "pkg"
 # UPDATE_PACKAGE "passwall" "Openwrt-Passwall/openwrt-passwall" "main" "pkg"
 # UPDATE_PACKAGE "passwall2" "Openwrt-Passwall/openwrt-passwall2" "main" "pkg"
-UPDATE_PACKAGE "honk" "QiuSimons/luci-app-honk" "master"
-UPDATE_PACKAGE "vmlinux-btf" "QiuSimons/vmlinux-btf" "master"
+# honk + luci-app-honk + luci-lib-daeuniverse + vmlinux-btf(-builtin) 全部取自
+# 上游维护方 daeuniverse/openwrt-packages。整仓克隆：honk 的 Build/Prepare 要求
+# 源码位于 honk/src，该目录被上游 .gitignore 排除、由 Settings.sh 另行补齐。
+# 注意 honk 只支持 25.12（内核 6.12），且 BTF 依赖用 vmlinux-btf-builtin 满足。
+UPDATE_PACKAGE "daeuniverse" "daeuniverse/openwrt-packages" "main"
 UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
 
 # UPDATE_PACKAGE "diskmanager" "4IceG/luci-app-mini-diskmanager" "main"

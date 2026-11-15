@@ -43,7 +43,7 @@ jobs:
           sudo -E apt -yqq update
           sudo -E apt -yqq full-upgrade
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-          sudo -E apt -yqq install dwarves clang llvm libbpf-dev libclang-dev
+          sudo -E apt -yqq install dwarves clang llvm libbpf-dev libclang-dev zstd
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
@@ -137,11 +137,23 @@ jobs:
         run: |
           cd ./wrt/
 
-          echo "========== Resolve Honk Toolchain Pins =========="
+          # honk 工具链只服务 daeuniverse 版 honk（目前仅 x86 已迁移）。
+          # 按配置文件而不是 final .config 判断：make defconfig 会静默删掉依赖
+          # 不满足的包，看 .config 会把“被丢弃”误判成“本来就不需要”。
+          if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
+            echo "honk toolchain is only wired for immortalwrt-x86, skip"
+            exit 0
+          fi
 
-          HONK_DIR="./package/luci-app-honk/honk"
-
-          eval "$("$HONK_DIR/honk_toolchain.sh")"
+          # 版本全部钉死，取自 daeuniverse/honk 的 v0.1.0-beta.6:
+          #   rust-toolchain.toml                   -> RUST_STABLE
+          #   crates/honk-ebpf/rust-toolchain.toml  -> RUST_NIGHTLY
+          #   .github/ci/pins.env                   -> BPF_LINKER_VERSION / SHA256
+          # 不再 eval 上游脚本：honk_toolchain.sh 属于 QiuSimons 的 fork，上游没有它。
+          RUST_STABLE="1.99.1"
+          RUST_NIGHTLY="nightly-2026-10-20"
+          BPF_LINKER_VERSION="0.11.0"
+          BPF_LINKER_SHA256="10f62ba9ab7e544d538370552660efcb4f1a19153d5752bbf0f6b51f3bada450"
 
           echo "========== Install Rust =========="
 
@@ -151,14 +163,11 @@ jobs:
           fi
           . "$HOME/.cargo/env"
 
-          echo "========== Install Zig =========="
-
-          curl -fsSL --retry 3 -o /tmp/zig.tar.xz \
-            "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
-
-          sudo tar -xJf /tmp/zig.tar.xz -C /usr/local
-
-          sudo ln -sf "/usr/local/zig-x86_64-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig
+          rustup toolchain install "$RUST_STABLE" --profile minimal \
+            --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
+          rustup toolchain install "$RUST_NIGHTLY" --profile minimal \
+            --component rust-src --component llvm-tools
+          rustup default "$RUST_STABLE"
 
           echo "========== Install bpf-linker =========="
 
@@ -169,6 +178,8 @@ jobs:
 
           sudo tar --zstd -xf /tmp/bpf-linker.tar.zst -C /usr/local/bin
 
+          bpf-linker --version
+
           echo "========== Honk Toolchain Ready =========="
 
       - name: Download Packages
@@ -177,11 +188,52 @@ jobs:
 
           make download -j$(nproc)
 
+      - name: Compile Honk
+        run: |
+          cd ./wrt/
+
+          if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
+            echo "honk is only wired for immortalwrt-x86, skip"
+            exit 0
+          fi
+
+          # 先单独打穿 honk：它依赖外部 Rust 工具链，混进并行全量编译后报错会被淹没。
+          # CONFIG_PACKAGE_vmlinux-btf= 与上游 CI 一致：把预编译 blob 版排除掉，
+          # 只留 vmlinux-btf-builtin（靠内核自带 BTF），否则提交进 buildroot 的那份
+          # 会因找不到 blob 而直接失败。
+          make package/honk/compile V=s CONFIG_PACKAGE_vmlinux-btf=
+
       - name: Compile Firmware
         run: |
           cd ./wrt/
 
           make -j$(nproc) || make -j1 V=s
+
+      - name: Verify Honk
+        run: |
+          cd ./wrt/
+
+          # 本轮只对 immortalwrt-x86 断言。ARM 三个 config 的 honk 仍指向旧的
+          # QiuSimons 包，尚未迁移，这里不替它们背锅。
+          if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
+            echo "honk assertion only covers immortalwrt-x86 for now, skip"
+            exit 0
+          fi
+
+          # 要求了就必须真的有：先看 defconfig 有没有把 honk 丢掉（依赖不满足时
+          # 会静默删除），再看最终固件的 manifest。任一缺失都让 job 失败。
+          if ! grep -q '^CONFIG_PACKAGE_honk=y' .config; then
+            echo "ERROR: honk was requested by $WRT_CONFIG but make defconfig dropped it (unsatisfied dependency?)"
+            grep -E 'HONK|honk|vmlinux-btf' .config || true
+            exit 1
+          fi
+
+          # 注意 find -exec ... \; 的退出码恒为 0，必须用 + 或管道才能真正判定
+          if ! find ./bin/targets/ -name '*.manifest' -exec grep -q '^honk - ' {} + ; then
+            echo "ERROR: honk is selected but missing from the firmware manifest"
+            exit 1
+          fi
+          echo "honk is in .config and in the firmware manifest"
 
       - name: Machine Space
         run: |
