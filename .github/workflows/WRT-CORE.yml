@@ -84,14 +84,32 @@ jobs:
 
       - name: Update Caches
         run: |
+          # 缓存里可能只有 toolchain 而没有 tools（tools/ 与 toolchain/ 是两套东西），
+          # 而下面 touch stamp 会把缺失掩盖掉，导致后来自定义目标直接跳过 tools/compile。
+          # 所以先验一下关键 host 工具是否真的在，不在就当缓存失效。
+          #
+          # stamp 只 touch host/tool 自己的，别碰 target 的
           if [ -d "./wrt/staging_dir" ]; then
-            find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
-              find "$DIR" -type f -exec touch {} +
+            MISSING=""
+            for T in sed patch tar zstd flock; do
+              [ -x "./wrt/staging_dir/host/bin/$T" ] || MISSING="$MISSING $T"
             done
 
-            mkdir -p ./wrt/tmp && echo "1" > ./wrt/tmp/.build
+            if [ -n "$MISSING" ]; then
+              echo "host tools missing:$MISSING -- treating cache as incomplete"
+              # host/stamp 是 tools 的 stamp 所在，删掉它 tools/compile 才会真跑。
+              # toolchain 的 stamp 在 TOOLCHAIN_DIR，不受影响，缓存照旧可用。
+              rm -rf ./wrt/staging_dir/host
+            else
+              find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
+                find "$DIR" -type f -exec touch {} +
+              done
 
-            echo "toolchain skiped done!"
+              echo "toolchain skiped done!"
+            fi
+
+            # tmp/.build 是所有 stamp 的前置，两个分支都要有
+            mkdir -p ./wrt/tmp && echo "1" > ./wrt/tmp/.build
           else
             echo "caches missed!"
           fi
@@ -197,7 +215,12 @@ jobs:
             exit 0
           fi
 
-          # 先单独打穿 honk：它依赖外部 Rust 工具链，混进并行全量编译后报错会被淹没。
+          # 直接指定 package 目标不会先编 tools/。而 package/utils/lua 的
+          # Host/Configure 用 $(SED)（= staging_dir/host/bin/sed），tools 缺失时
+          # 会在 honk 之前就炸在 lua 上。world 本来会先编 tools，这里补上。
+          make tools/compile -j$(nproc)
+
+          # 再单独打穿 honk：它依赖外部 Rust 工具链，混进并行全量编译后报错会被淹没。
           # CONFIG_PACKAGE_vmlinux-btf= 与上游 CI 一致：把预编译 blob 版排除掉，
           # 只留 vmlinux-btf-builtin（靠内核自带 BTF），否则提交进 buildroot 的那份
           # 会因找不到 blob 而直接失败。
