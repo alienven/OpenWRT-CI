@@ -201,25 +201,25 @@ jobs:
 
           make download -j$(nproc)
 
-      - name: Compile Honk
-        run: |
-          cd ./wrt/
+      # - name: Compile Honk
+      #   run: |
+      #     cd ./wrt/
 
-          if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
-            echo "honk is only wired for immortalwrt-x86, skip"
-            exit 0
-          fi
+      #     if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
+      #       echo "honk is only wired for immortalwrt-x86, skip"
+      #       exit 0
+      #     fi
 
-          make prepare -j$(nproc)
+      #     make prepare -j$(nproc)
 
-          TC_DIR=$(ls -d ./staging_dir/toolchain-* 2>/dev/null | head -n 1)
-          if [ -z "$TC_DIR" ] || ! ls "$TC_DIR"/lib/libgcc_s.so.* >/dev/null 2>&1; then
-            echo "ERROR: toolchain staging is incomplete after make prepare"
-            ls -l ./staging_dir/toolchain-* 2>/dev/null || true
-            exit 1
-          fi
+      #     TC_DIR=$(ls -d ./staging_dir/toolchain-* 2>/dev/null | head -n 1)
+      #     if [ -z "$TC_DIR" ] || ! ls "$TC_DIR"/lib/libgcc_s.so.* >/dev/null 2>&1; then
+      #       echo "ERROR: toolchain staging is incomplete after make prepare"
+      #       ls -l ./staging_dir/toolchain-* 2>/dev/null || true
+      #       exit 1
+      #     fi
 
-          make package/honk/compile V=s CONFIG_PACKAGE_vmlinux-btf=
+      #     make package/honk/compile V=s CONFIG_PACKAGE_vmlinux-btf=
 
       - name: Compile Firmware
         run: |
