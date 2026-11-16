@@ -15,16 +15,6 @@ if [[ "${WRT_CONFIG##*-}" == "JDC1800" ]]; then
 	echo "qualcommax set up nowifi successfully!"
 fi
 
-# Fix rust
-# 子 shell 内切换目录，避免影响后面仍按相对路径工作的步骤
-if [ "${WRT_BRANCH}" = "openwrt-25.12" ]; then
-	(
-		cd feeds/packages || exit 0
-		# 同远程origin/master覆盖本地lang/rust
-
-	)
-fi
-
 # 补齐 honk 源码
 # daeuniverse/openwrt-packages 不把上游 Rust 源码放进仓库（其 .gitignore 排除
 # /honk/src/），而 honk/Makefile 的 Build/Prepare 在该目录缺失时会直接报错退出。
