@@ -18,7 +18,6 @@ on:
         type: choice
         options:
           - master
-          - openwrt-25.12
 
 #CI权限
 permissions: write-all
