@@ -4,82 +4,84 @@
 
 #安装和更新软件包
 UPDATE_PACKAGE() {
-	local PKG_NAME=$1
-	local PKG_REPO=$2
-	local PKG_BRANCH=$3
-	local PKG_SPECIAL=$4
+    local PKG_NAME=$1
+    local PKG_REPO=$2
+    local PKG_BRANCH=$3
+    local PKG_SPECIAL=$4
 
-	local REPO_NAME=${PKG_REPO#*/}
-	local REPO_PATH="./package/$REPO_NAME"
-	local CLONE_PATH="./package/.clone-$PKG_NAME"
-	local EXTRA_LIST=($5)  # 第5个参数：空格分隔的名称列表
+    local REPO_NAME=${PKG_REPO#*/}
+    local REPO_PATH="./package/$REPO_NAME"
+    local CLONE_PATH="./package/.clone-$PKG_NAME"
+    local EXTRA_LIST=($5)  # 第5个参数：空格分隔的名称列表
 
-	# pkg 模式：$1 仅用于临时目录名 .clone-$1，清理与提取都改用 $5；$5 为空时回退为 $1
-	# 普通模式：逻辑不变，$1 与 $5 都只用于清理 feeds 旧目录
-	local PKG_LIST=()
-	if [[ "$PKG_SPECIAL" == "pkg" && ${#EXTRA_LIST[@]} -gt 0 ]]; then
-		PKG_LIST=("${EXTRA_LIST[@]}")
-	else
-		PKG_LIST=("$PKG_NAME" "${EXTRA_LIST[@]}")
-	fi
+    # pkg 模式：$1 仅用于临时目录名 .clone-$1，清理与提取都改用 $5；$5 为空时回退为 $1
+    # 普通模式：逻辑不变，$1 与 $5 都只用于清理 feeds 旧目录
+    local PKG_LIST=()
+    if [[ "$PKG_SPECIAL" == "pkg" && ${#EXTRA_LIST[@]} -gt 0 ]]; then
+        PKG_LIST=("${EXTRA_LIST[@]}")
+    else
+        PKG_LIST=("$PKG_NAME" "${EXTRA_LIST[@]}")
+    fi
 
-	echo " "
+    echo " "
 
-	# 删除本地可能存在的不同名称的软件包
-	for NAME in "${PKG_LIST[@]}"; do
-		# 查找匹配的目录
-		echo "Search directory: $NAME"
-		local FOUND_DIRS
-		FOUND_DIRS=$(find ./feeds/luci/ ./feeds/packages/ -maxdepth 3 -type d -iname "*$NAME*" 2>/dev/null)
+    # 删除本地可能存在的不同名称的软件包
+    for NAME in "${PKG_LIST[@]}"; do
+        # 查找匹配的目录
+        echo "Search directory: $NAME"
+        local FOUND_DIRS
+        FOUND_DIRS=$(find ./feeds/luci/ ./feeds/packages/ -maxdepth 3 -type d -iname "*$NAME*" 2>/dev/null)
 
-		# 删除找到的目录
-		if [ -n "$FOUND_DIRS" ]; then
-			while read -r DIR; do
-				rm -rf "$DIR"
-				echo "Delete directory: $DIR"
-			done <<< "$FOUND_DIRS"
-		else
-			echo "Not fonud directory: $NAME"
-		fi
-	done
+        # 删除找到的目录
+        if [ -n "$FOUND_DIRS" ]; then
+            while read -r DIR; do
+                rm -rf "$DIR"
+                echo "Delete directory: $DIR"
+            done <<< "$FOUND_DIRS"
+        else
+            echo "Not fonud directory: $NAME"
+        fi
+    done
 
-	# 清理上次中断残留的临时目录，避免 git clone 报 already exists
-	rm -rf "$CLONE_PATH"
+    # 清理上次中断残留的临时目录，避免 git clone 报 already exists
+    rm -rf "$CLONE_PATH"
 
-	# 克隆 GitHub 仓库
-	git clone --depth=1 --single-branch --branch "$PKG_BRANCH" "https://github.com/$PKG_REPO.git" "$CLONE_PATH"
+    # 克隆 GitHub 仓库
+    git clone --depth=1 --single-branch --branch "$PKG_BRANCH" "https://github.com/$PKG_REPO.git" "$CLONE_PATH"
 
-	# 处理克隆的仓库
-	if [[ "$PKG_SPECIAL" == "pkg" ]]; then
-		# 按 $5 中的每个名称分别提取，命中即复制到 ./package
-		for NAME in "${PKG_LIST[@]}"; do
-			local MATCHED
-			MATCHED=$(find "$CLONE_PATH" -mindepth 1 -maxdepth 4 -type d -iname "*$NAME*" -prune -print)
+    # 处理克隆的仓库
+    if [[ "$PKG_SPECIAL" == "pkg" ]]; then
+        # 按 $5 中的每个名称分别提取，命中即复制到 ./package
+        for NAME in "${PKG_LIST[@]}"; do
+            local MATCHED
+            MATCHED=$(find "$CLONE_PATH" -mindepth 1 -maxdepth 4 -type d -iname "*$NAME*" -prune -print)
 
-			if [ -z "$MATCHED" ]; then
-				echo "Not found in repo: $NAME"
-				continue
-			fi
+            if [ -z "$MATCHED" ]; then
+                echo "Not found in repo: $NAME"
+                continue
+            fi
 
-			while read -r DIR; do
-				local TARGET="./package/$(basename "$DIR")"
+            while read -r DIR; do
+                local TARGET="./package/$(basename "$DIR")"
 
-				# 目标目录已存在时先删除，避免旧文件残留（cp -rf 只会合并覆盖，不会清理多出来的文件）
-				if [ -e "$TARGET" ]; then
-					rm -rf "$TARGET"
-					echo "Remove existing: $TARGET"
-				fi
+                # 目标目录已存在时先删除，避免旧文件残留（cp -rf 只会合并覆盖，不会清理多出来的文件）
+                if [ -e "$TARGET" ]; then
+                    rm -rf "$TARGET"
+                    echo "Remove existing: $TARGET"
+                fi
 
-				cp -a "$DIR" ./package/
-				echo "Extract directory: $DIR"
-			done <<< "$MATCHED"
-		done
+                cp -a "$DIR" ./package/
+                echo "Extract directory: $DIR"
+            done <<< "$MATCHED"
+        done
 
-		rm -rf "$CLONE_PATH"
-	else
-		rm -rf "$REPO_PATH"
-		mv "$CLONE_PATH" "$REPO_PATH"
-	fi
+        rm -rf "$CLONE_PATH"
+    else
+        rm -rf "$REPO_PATH"
+        mv "$CLONE_PATH" "$REPO_PATH"
+    fi
+
+
 }
 
 # 调用示例
@@ -141,43 +143,43 @@ UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "pkg" "miniupnpd luci-app-up
 
 #更新软件包版本
 UPDATE_VERSION() {
-	local PKG_NAME=$1
-	local PKG_MARK=${2:-false}
-	local PKG_FILES=$(find ./package/ ./feeds/packages/ -maxdepth 3 -type f -wholename "*/$PKG_NAME/Makefile")
+    local PKG_NAME=$1
+    local PKG_MARK=${2:-false}
+    local PKG_FILES=$(find ./package/ ./feeds/packages/ -maxdepth 3 -type f -wholename "*/$PKG_NAME/Makefile")
 
-	if [ -z "$PKG_FILES" ]; then
-		echo "$PKG_NAME not found!"
-		return
-	fi
+    if [ -z "$PKG_FILES" ]; then
+        echo "$PKG_NAME not found!"
+        return
+    fi
 
-	echo -e "\n$PKG_NAME version update has started!"
+    echo -e "\n$PKG_NAME version update has started!"
 
-	for PKG_FILE in $PKG_FILES; do
-		local PKG_REPO=$(grep -Po "PKG_SOURCE_URL:=https://.*github.com/\K[^/]+/[^/]+(?=.*)" $PKG_FILE)
-		local PKG_TAG=$(curl -sL "https://api.github.com/repos/$PKG_REPO/releases" | jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name")
+    for PKG_FILE in $PKG_FILES; do
+        local PKG_REPO=$(grep -Po "PKG_SOURCE_URL:=https://.*github.com/\K[^/]+/[^/]+(?=.*)" $PKG_FILE)
+        local PKG_TAG=$(curl -sL "https://api.github.com/repos/$PKG_REPO/releases" | jq -r "map(select(.prerelease == $PKG_MARK)) | first | .tag_name")
 
-		local OLD_VER=$(grep -Po "PKG_VERSION:=\K.*" "$PKG_FILE")
-		local OLD_URL=$(grep -Po "PKG_SOURCE_URL:=\K.*" "$PKG_FILE")
-		local OLD_FILE=$(grep -Po "PKG_SOURCE:=\K.*" "$PKG_FILE")
-		local OLD_HASH=$(grep -Po "PKG_HASH:=\K.*" "$PKG_FILE")
+        local OLD_VER=$(grep -Po "PKG_VERSION:=\K.*" "$PKG_FILE")
+        local OLD_URL=$(grep -Po "PKG_SOURCE_URL:=\K.*" "$PKG_FILE")
+        local OLD_FILE=$(grep -Po "PKG_SOURCE:=\K.*" "$PKG_FILE")
+        local OLD_HASH=$(grep -Po "PKG_HASH:=\K.*" "$PKG_FILE")
 
-		local PKG_URL=$([[ "$OLD_URL" == *"releases"* ]] && echo "${OLD_URL%/}/$OLD_FILE" || echo "${OLD_URL%/}")
+        local PKG_URL=$([[ "$OLD_URL" == *"releases"* ]] && echo "${OLD_URL%/}/$OLD_FILE" || echo "${OLD_URL%/}")
 
-		local NEW_VER=$(echo $PKG_TAG | sed -E 's/[^0-9]+/\./g; s/^\.|\.$//g')
-		local NEW_URL=$(echo $PKG_URL | sed "s/\$(PKG_VERSION)/$NEW_VER/g; s/\$(PKG_NAME)/$PKG_NAME/g")
-		local NEW_HASH=$(curl -sL "$NEW_URL" | sha256sum | cut -d ' ' -f 1)
+        local NEW_VER=$(echo $PKG_TAG | sed -E 's/[^0-9]+/\./g; s/^\.|\.$//g')
+        local NEW_URL=$(echo $PKG_URL | sed "s/\$(PKG_VERSION)/$NEW_VER/g; s/\$(PKG_NAME)/$PKG_NAME/g")
+        local NEW_HASH=$(curl -sL "$NEW_URL" | sha256sum | cut -d ' ' -f 1)
 
-		echo "old version: $OLD_VER $OLD_HASH"
-		echo "new version: $NEW_VER $NEW_HASH"
+        echo "old version: $OLD_VER $OLD_HASH"
+        echo "new version: $NEW_VER $NEW_HASH"
 
-		if [[ "$NEW_VER" =~ ^[0-9].* ]] && dpkg --compare-versions "$OLD_VER" lt "$NEW_VER"; then
-			sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$NEW_VER/g" "$PKG_FILE"
-			sed -i "s/PKG_HASH:=.*/PKG_HASH:=$NEW_HASH/g" "$PKG_FILE"
-			echo "$PKG_FILE version has been updated!"
-		else
-			echo "$PKG_FILE version is already the latest!"
-		fi
-	done
+        if [[ "$NEW_VER" =~ ^[0-9].* ]] && dpkg --compare-versions "$OLD_VER" lt "$NEW_VER"; then
+            sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$NEW_VER/g" "$PKG_FILE"
+            sed -i "s/PKG_HASH:=.*/PKG_HASH:=$NEW_HASH/g" "$PKG_FILE"
+            echo "$PKG_FILE version has been updated!"
+        else
+            echo "$PKG_FILE version is already the latest!"
+        fi
+    done
 }
 
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
@@ -185,5 +187,5 @@ UPDATE_VERSION() {
 
 #引入私有扩展脚本
 # if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
-# 	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
+#     source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
 # fi

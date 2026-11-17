@@ -36,6 +36,42 @@ if [ -d "$HONK_PKG" ]; then
         echo "honk: WARNING package expects $MAKEFILE_TAG but cloned $HONK_REV"
     fi
     echo "honk: sources ready at $HONK_REV (package default ${MAKEFILE_TAG:-unknown})"
+
+    # honk 必须用 rustup 装的工具链，不能用 feeds 编出来的 rust/host
+    # OpenWrt 打包时把 staging_dir/host/bin 放在 PATH 最前（include/rules.mk 的
+    # TARGET_PATH_PKG），而 feeds/packages/lang/rust 的 Host/Install 把 rustc/cargo
+    # 1.96.x 装进了同一个目录。于是 rustup 依 rust-toolchain.toml 选版本的行为被
+    # 绕过，aya 0.16 / aya-obj 0.6 要求的 rustc 1.98.0 得不到满足，报
+    #   error: rustc 1.96.1 is not supported by the following packages
+    # build.sh 是纯 shell 脚本，Makefile 里由 sh "$(PKG_DIR)/build.sh" 直接调用
+    # （不复制进 build_dir），所以在它开头把 rustup 的 bin 提到 PATH 最前即可。
+    HONK_SH="$HONK_PKG/build.sh"
+    if [ ! -f "$HONK_SH" ]; then
+        echo "honk: $HONK_SH not found, skip rustup PATH patch"
+    else
+        # 用 awk 在 "set -eu" 之后插入三行，不用 sed 的 a 命令：多行插入在
+        # BSD/GNU sed 上的转义写法不一致，容易静默插错地方。
+        # awk 找不到 "set -eu" 会以 3 退出，下面据此报错而不是默默放行。
+        HONK_INS1='export PATH="${HOME}/.cargo/bin:${PATH}"'
+        HONK_INS2='[ -x "${HOME}/.cargo/bin/cargo" ] || { echo "honk: rustup cargo missing at ${HOME}/.cargo/bin/cargo" >&2; exit 1; }'
+        HONK_INS3='echo " honk: rustc $(rustc --version 2>&1)" >&2'
+
+        if awk -v a="$HONK_INS1" -v b="$HONK_INS2" -v c="$HONK_INS3" '
+            { print }
+            $0 ~ /^set -eu[[:space:]]*$/ { print a; print b; print c; done = 1 }
+            END { if (!done) exit 3 }
+        ' "$HONK_SH" > "$HONK_SH.new"; then
+            mv -f "$HONK_SH.new" "$HONK_SH"
+            chmod +x "$HONK_SH"
+            echo "honk: patched build.sh to prefer the rustup toolchain"
+        else
+            rm -f "$HONK_SH.new"
+            # 上游改了 build.sh 的开头（没有独立的 "set -eu" 行）就会走到这里。
+            # 静默失败会让下一次构建又白跑几小时，所以直接报错。
+            echo "honk: ERROR: failed to patch $HONK_SH (no standalone 'set -eu' line?)"
+            exit 1
+        fi
+    fi
 else
     echo "honk: package directory not found, skip"
 fi
