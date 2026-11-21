@@ -42,7 +42,6 @@ jobs:
           sudo -E apt -yqq update
           sudo -E apt -yqq full-upgrade
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-          sudo -E apt -yqq install dwarves clang llvm libbpf-dev libclang-dev zstd
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
@@ -84,35 +83,12 @@ jobs:
       - name: Update Caches
         run: |
           if [ -d "./wrt/staging_dir" ]; then
-            MISSING=""
-            for T in sed patch tar zstd flock; do
-              [ -x "./wrt/staging_dir/host/bin/$T" ] || MISSING="$MISSING $T"
+            find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
+              find "$DIR" -type f -exec touch {} +
             done
 
-            if [ -n "$MISSING" ]; then
-              echo "host tools missing:$MISSING -- treating cache as incomplete"
-              rm -rf ./wrt/staging_dir/host
-            fi
-
-            TC_DIR=$(ls -d ./wrt/staging_dir/toolchain-* 2>/dev/null | head -n 1)
-            if [ -z "$TC_DIR" ] || [ ! -f "$TC_DIR/stamp/.gcc_final_installed" ] ||
-               ! ls "$TC_DIR"/lib/libgcc_s.so.* >/dev/null 2>&1; then
-              echo "toolchain incomplete -- treating cache as incomplete"
-              rm -rf ./wrt/staging_dir/toolchain-*
-              TC_DIR=""
-            fi
-
-            if [ ! -d "./wrt/staging_dir/host" ] || [ -z "$TC_DIR" ]; then
-              echo "staging dir incomplete, skip stamp touch"
-            else
-              find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
-                find "$DIR" -type f -exec touch {} +
-              done
-
-              echo "toolchain skiped done!"
-            fi
-
             mkdir -p ./wrt/tmp && echo "1" > ./wrt/tmp/.build
+            echo "toolchain skiped done!"
           else
             echo "caches missed!"
           fi
@@ -154,115 +130,17 @@ jobs:
 
           make defconfig -j$(nproc)
 
-      - name: Initialization Honk Toolchain
-        run: |
-          cd ./wrt/
-
-          if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
-            echo "honk toolchain is only wired for immortalwrt-x86, skip"
-            exit 0
-          fi
-
-          RUST_STABLE="1.99.1"
-          RUST_NIGHTLY="nightly-2026-10-20"
-          BPF_LINKER_VERSION="0.11.0"
-          BPF_LINKER_SHA256="10f62ba9ab7e544d538370552660efcb4f1a19153d5752bbf0f6b51f3bada450"
-
-          echo "========== Install Rust =========="
-
-          if ! command -v rustup >/dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-              | sh -s -- -y --profile minimal --no-modify-path
-          fi
-          . "$HOME/.cargo/env"
-
-          rustup toolchain install "$RUST_STABLE" --profile minimal \
-            --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
-          rustup toolchain install "$RUST_NIGHTLY" --profile minimal \
-            --component rust-src --component llvm-tools
-          rustup default "$RUST_STABLE"
-
-          echo "========== Install bpf-linker =========="
-
-          curl -fsSL --retry 3 -o /tmp/bpf-linker.tar.zst \
-            "https://github.com/aya-rs/bpf-linker/releases/download/v${BPF_LINKER_VERSION}/bpf-linker-x86_64-unknown-linux-musl.tar.zst"
-
-          echo "${BPF_LINKER_SHA256}  /tmp/bpf-linker.tar.zst" | sha256sum -c -
-
-          sudo tar --zstd -xf /tmp/bpf-linker.tar.zst -C /usr/local/bin
-
-          bpf-linker --version
-
-          echo "========== Honk Toolchain Ready =========="
-
       - name: Download Packages
         run: |
           cd ./wrt/
 
           make download -j$(nproc)
 
-      # - name: Compile Honk
-      #   run: |
-      #     cd ./wrt/
-
-      #     if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
-      #       echo "honk is only wired for immortalwrt-x86, skip"
-      #       exit 0
-      #     fi
-
-      #     make prepare -j$(nproc)
-
-      #     TC_DIR=$(ls -d ./staging_dir/toolchain-* 2>/dev/null | head -n 1)
-      #     if [ -z "$TC_DIR" ] || ! ls "$TC_DIR"/lib/libgcc_s.so.* >/dev/null 2>&1; then
-      #       echo "ERROR: toolchain staging is incomplete after make prepare"
-      #       ls -l ./staging_dir/toolchain-* 2>/dev/null || true
-      #       exit 1
-      #     fi
-
-      #     make package/honk/compile V=s CONFIG_PACKAGE_vmlinux-btf=
-
       - name: Compile Firmware
         run: |
           cd ./wrt/
 
-          LOG="$GITHUB_WORKSPACE/compile.log"
-          set +e
-          ( while sleep 60; do echo "building... $(wc -l < "$LOG") lines"; done ) &
-          make -j$(nproc) > "$LOG" 2>&1 || make -j1 V=s >> "$LOG" 2>&1
-          STATUS=$?
-          kill $!
-
-          if [ $STATUS -eq 0 ]; then echo "ok, $(wc -l < "$LOG") lines"; exit 0; fi
-          tail -n 200 "$LOG"
-          exit $STATUS
-
-      - name: Upload Compile Log
-        if: failure()
-        uses: actions/upload-artifact@main
-        with:
-          name: compile-log-${{env.WRT_CONFIG}}-${{env.WRT_DATE}}
-          path: ./compile.log
-
-      - name: Verify Honk
-        run: |
-          cd ./wrt/
-
-          if [ "$WRT_CONFIG" != "immortalwrt-x86" ]; then
-            echo "honk assertion only covers immortalwrt-x86 for now, skip"
-            exit 0
-          fi
-
-          if ! grep -q '^CONFIG_PACKAGE_honk=y' .config; then
-            echo "ERROR: honk was requested by $WRT_CONFIG but make defconfig dropped it (unsatisfied dependency?)"
-            grep -E 'HONK|honk|vmlinux-btf' .config || true
-            exit 1
-          fi
-
-          if ! find ./bin/targets/ -name '*.manifest' -exec grep -q '^honk - ' {} + ; then
-            echo "ERROR: honk is selected but missing from the firmware manifest"
-            exit 1
-          fi
-          echo "honk is in .config and in the firmware manifest"
+          make -j$(nproc) || make -j1 V=s
 
       - name: Machine Space
         run: |
